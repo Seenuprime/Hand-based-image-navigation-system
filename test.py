@@ -5,22 +5,27 @@ from collections import deque
 import os
 import time
 
+## Initialize Mediapipe Hands and drawing utilities
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands()
 mp_draw = mp.solutions.drawing_utils
 
+## Camera setup
 cap = cv.VideoCapture(0)
 width = 900
 height = 600
 
+## Swipe gesture tracking variables
 position_history = deque(maxlen=5)
 last_swipe_time = 0
 swipe_threshold = 80
 swipe_countdown = 0.8
 
+## Loading image names
 file_names = os.listdir('photos')
 current_image = 0
 
+## Setting up windows
 CONTROL_WINDOW = "Gesture Control"
 IMAGE_WINDOW = "Current Image"
 cv.namedWindow(CONTROL_WINDOW)
@@ -29,6 +34,7 @@ cv.namedWindow(IMAGE_WINDOW)
 current_img_data = cv.imread(f"photos/{file_names[current_image]}")
 cv.imshow(IMAGE_WINDOW, current_img_data)
 
+## Detect swipe gesture using index and middle finger positions
 def swipe_gesture(landmarks):
     index_tip = landmarks.landmark[8]
     index_pip = landmarks.landmark[6]
@@ -46,6 +52,7 @@ def swipe_gesture(landmarks):
            (indx_middle_distance < 0.06)
 
 zoom_values = deque(maxlen=5)
+# Detect pinch to zoom using thumb and index finger
 def zoom_gesture(landmarks, img_width, img_height):
     index_tip = landmarks.landmark[8]
     thumb_tip = landmarks.landmark[4]
@@ -74,6 +81,7 @@ def zoom_gesture(landmarks, img_width, img_height):
     return None
 
 bright_values = deque(maxlen=5)
+# Detect pinch to change brightness using thumb,index and middle finger
 def is_bright(landmarks, width, height):
     bright_factor = 1.0
     index_tip = landmarks.landmark[8]
@@ -99,6 +107,7 @@ def is_bright(landmarks, width, height):
         bright_factor = np.mean(bright_values)
     return bright_factor
 
+## Main loop
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
@@ -113,6 +122,7 @@ while cap.isOpened():
 
     if results.multi_hand_landmarks:
         for landmarks in results.multi_hand_landmarks:
+            ## swipe gesture
             if swipe_gesture(landmarks) and len(position_history) == position_history.maxlen:
                 diff = position_history[-1] - position_history[0]
                 current_time = time.time()
@@ -128,12 +138,14 @@ while cap.isOpened():
                         cv.imshow(IMAGE_WINDOW, current_img_data)
                         last_swipe_time = current_time
 
+            ## Zoom gesture
             zoom = zoom_gesture(landmarks, img_width, img_height)
             if zoom is not None:
                 img = current_img_data[zoom[2]:zoom[3], zoom[0]:zoom[1]]
                 img = cv.resize(img, (img_width, img_height))
                 cv.imshow(IMAGE_WINDOW, img)
 
+            ## brightness adjustment
             bright_factor = is_bright(landmarks, width, height)
             if bright_factor != 1.0:
                 hsv_image = cv.cvtColor(current_img_data, cv.COLOR_BGR2HSV)
@@ -143,7 +155,6 @@ while cap.isOpened():
                 bright_image = cv.cvtColor(hsv_image, cv.COLOR_HSV2BGR)
                 cv.imshow(IMAGE_WINDOW, bright_image)
 
-            cv.putText(frame, "Satisfied....", (30, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
 
     cv.imshow(CONTROL_WINDOW, frame)
